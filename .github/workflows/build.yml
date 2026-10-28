@@ -1,0 +1,89 @@
+name: Android alpha verification
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  bootstrap:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Import reviewed source archive once
+        env:
+          EXPECTED_ARCHIVE_SHA: f19d27921d5aa49a65ca4a19669f749c0ced0b3cc48eba9f29b25aab900e8a72
+        run: |
+          if ! test -f source-bootstrap.zip; then exit 0; fi
+          python3 - <<'PYCODE'
+          import os, hashlib, pathlib, zipfile
+          archive=pathlib.Path('source-bootstrap.zip')
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==os.environ['EXPECTED_ARCHIVE_SHA']
+          with zipfile.ZipFile(archive) as z:
+              for name in z.namelist():
+                  p=pathlib.PurePosixPath(name)
+                  assert not p.is_absolute() and '..' not in p.parts
+                  assert p.parts[0] not in {'.git','.github'}
+              z.extractall('.')
+          pathlib.Path('gradlew').chmod(0o755)
+          archive.unlink()
+          PYCODE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Import verified Argus alpha sources'
+          git push origin HEAD:main
+  verify:
+    needs: bootstrap
+    if: always() && (needs.bootstrap.result == 'success' || needs.bootstrap.result == 'skipped')
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.sha }}
+      - name: Source availability
+        id: source
+        run: |
+          if test -f gradlew; then echo ready=true >> "$GITHUB_OUTPUT"; else echo '::notice::Run this workflow manually to import the verified source archive'; fi
+      - uses: actions/setup-java@v5
+        if: steps.source.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-go@v6
+        if: steps.source.outputs.ready == 'true'
+        with:
+          go-version: '1.26.3'
+          cache-dependency-path: datapath/go.sum
+      - uses: android-actions/setup-android@v4
+        if: steps.source.outputs.ready == 'true'
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+        if: steps.source.outputs.ready == 'true'
+      - run: |
+        if: steps.source.outputs.ready == 'true'
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260803200217-62cee1672c8e
+          gomobile init
+      - name: Transport regression tests
+        if: steps.source.outputs.ready == 'true'
+        working-directory: datapath
+        run: go test -race ./...
+      - name: Build and Android lint
+        if: steps.source.outputs.ready == 'true'
+        run: ./gradlew :app:assembleDebug :app:lintDebug --no-daemon
+      - name: Verify APK identity
+        if: steps.source.outputs.ready == 'true'
+        run: bash scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v5
+        if: steps.source.outputs.ready == 'true'
+        with:
+          name: ci-verification-not-an-installed-app-upgrade
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            BUILD-PROOF.txt
+          if-no-files-found: error
