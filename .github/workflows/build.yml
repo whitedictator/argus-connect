@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: Import reviewed source archive once
         env:
-          EXPECTED_ARCHIVE_SHA: 6d6e6f553919e5dc664bf5cfbdd2c04fa834c4f795e5c305d9bc4383de4dba1e
+          EXPECTED_ARCHIVE_SHA: b725e6ab305c09388f3b4b21c1fe8d64680db8b2c334a5214f892f5499e91fa2
         run: |
           if ! test -f source-bootstrap.zip; then exit 0; fi
           python3 - <<'PYCODE'
