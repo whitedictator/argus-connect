@@ -13,6 +13,7 @@ class ArgusApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DiagnosticJournal.initialize(this)
         KadbCert.configure(
             OkioFilePrivateKeyStore(filesDir.resolve("adb/argus_adb_key.pem").absolutePath.toPath()),
         )

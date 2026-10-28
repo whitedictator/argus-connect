@@ -9,7 +9,7 @@ import java.time.Instant
 
 object DiagnosticReport {
     fun create(context: Context, light: LightState, bridge: BridgeState): File {
-        val directory = File(context.cacheDir, "diagnostics").apply { mkdirs() }
+        val directory = File(context.filesDir, "diagnostics/reports").apply { mkdirs() }
         val report = File(directory, "argus-diagnostic-${System.currentTimeMillis()}.txt")
         val connectivity = context.getSystemService(ConnectivityManager::class.java)
         val network = connectivity.activeNetwork
@@ -67,9 +67,11 @@ object DiagnosticReport {
                 appendLine("[SESSION TIMELINE]")
                 DiagnosticJournal.snapshot().forEach(::appendLine)
                 appendLine()
-                appendLine("Privacy: no message content, contacts, account IDs, device IP, DNS names, or packet payloads are collected.")
+                appendLine("Privacy: no message content, call audio, contacts, account IDs, credentials or packet payloads. Public service endpoint metadata may appear.")
             },
         )
+        directory.listFiles { file -> file.name.startsWith("argus-diagnostic-") && file.extension == "txt" }
+            ?.sortedByDescending { it.lastModified() }?.drop(8)?.forEach { it.delete() }
         return report
     }
 

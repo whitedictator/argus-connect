@@ -34,6 +34,22 @@ internal class UtilityActionView(context: Context, private val icon: String) : V
         paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.8f; paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
         val p = Path()
         when(icon) {
+            "settings" -> {
+                for (i in 0 until 32) {
+                    val angle = Math.PI * 2 * i / 32 - Math.PI / 2
+                    val r = if (i % 4 == 1 || i % 4 == 2) 12f else 9.5f
+                    val x = 16f + r * kotlin.math.cos(angle).toFloat()
+                    val y = 16f + r * kotlin.math.sin(angle).toFloat()
+                    if (i == 0) p.moveTo(x,y) else p.lineTo(x,y)
+                }
+                p.close(); canvas.drawPath(p,paint); canvas.drawCircle(16f,16f,4f,paint)
+            }
+            "close" -> { canvas.drawLine(9f,9f,23f,23f,paint);canvas.drawLine(23f,9f,9f,23f,paint) }
+            "update" -> {
+                canvas.drawArc(RectF(5f,5f,27f,27f),-30f,285f,false,paint)
+                p.moveTo(25f,4f);p.lineTo(27f,11f);p.lineTo(20f,9f);canvas.drawPath(p,paint)
+                canvas.drawLine(16f,10f,16f,22f,paint);canvas.drawLine(12f,18f,16f,22f,paint);canvas.drawLine(20f,18f,16f,22f,paint)
+            }
             "power" -> { canvas.drawArc(RectF(5f,5f,27f,27f), -52f, 284f, false, paint); canvas.drawLine(16f,3f,16f,16f,paint) }
             "hotspot" -> {
                 for (radius in listOf(7f,12f)) { canvas.drawArc(RectF(16-radius,16-radius,16+radius,16+radius),135f,90f,false,paint); canvas.drawArc(RectF(16-radius,16-radius,16+radius,16+radius),-45f,90f,false,paint) }

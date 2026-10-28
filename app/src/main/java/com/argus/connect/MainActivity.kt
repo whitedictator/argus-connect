@@ -48,6 +48,9 @@ class MainActivity : Activity() {
     private lateinit var hotspotStatus: TextView
     private lateinit var updateStatus: TextView
     private lateinit var updates: AppUpdates
+    private lateinit var settingsButton: UtilityActionView
+    private var settingsUpdateStatus: TextView? = null
+    private var lastUpdateMessage = "Check for a newer version"
     private lateinit var proof: TextView
     private lateinit var hero: ArgusHeroView
     private lateinit var repairDeck: RepairDeckView
@@ -59,8 +62,8 @@ class MainActivity : Activity() {
         window.statusBarColor = getColor(R.color.argus_background)
         window.navigationBarColor = getColor(R.color.argus_background)
         setContentView(buildScreen())
-        updates = AppUpdates(this) { message -> updateStatus.text = message }
-        updateStatus.setOnClickListener { updates.onTap() }
+        updates = AppUpdates(this) { message -> lastUpdateMessage = message; settingsUpdateStatus?.text = message }
+        settingsButton.setOnClickListener { showSettings() }
         updates.check()
 
         lightButton.setOnClickListener { toggleLight() }
@@ -166,14 +169,16 @@ class MainActivity : Activity() {
             }, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
 
-        content.addView(TextView(this).apply {
+        val header = FrameLayout(this)
+        header.addView(TextView(this).apply {
             text = "ARGUS CONNECT"
-            setTextColor(getColor(R.color.argus_muted))
-            textSize = 13f
-            letterSpacing = .22f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-        }, margins(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, bottom = dp(10)))
+            setTextColor(getColor(R.color.argus_muted)); textSize = 13f; letterSpacing = .22f
+            typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
+        }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
+        settingsButton = UtilityActionView(this, "settings").apply { text = "Settings" }
+        header.addView(settingsButton, FrameLayout.LayoutParams(dp(44),dp(44),Gravity.END or Gravity.CENTER_VERTICAL))
+        content.addView(header,margins(ViewGroup.LayoutParams.MATCH_PARENT,dp(48),bottom=dp(10)))
+
 
         hero = ArgusHeroView(this)
         content.addView(hero, margins(ViewGroup.LayoutParams.MATCH_PARENT, dp(184), bottom = dp(10)))
@@ -250,7 +255,7 @@ class MainActivity : Activity() {
         }
 
         updateStatus = TextView(this).apply {
-            text = "Версия ${BuildConfig.VERSION_NAME} · проверить обновления"
+            text = "Argus Connect · ${BuildConfig.VERSION_NAME}"
             textSize = 12f
             gravity = Gravity.CENTER
             setTextColor(getColor(R.color.argus_muted))
@@ -708,6 +713,58 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
+    private fun showSettings() {
+        val dialog = android.app.Dialog(this)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(22),dp(22),dp(22),dp(24))
+            background = rounded(getColor(R.color.argus_surface),dp(26).toFloat())
+        }
+        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        header.addView(TextView(this).apply {
+            text = "Settings"; textSize = 25f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(getColor(R.color.argus_text))
+        },LinearLayout.LayoutParams(0,dp(48),1f))
+        header.addView(UtilityActionView(this,"close").apply {
+            text = "Close settings";setOnClickListener { dialog.dismiss() }
+        },LinearLayout.LayoutParams(dp(44),dp(44)))
+        panel.addView(header)
+        panel.addView(TextView(this).apply {
+            text = "ARGUS CONNECT  ·  ${BuildConfig.VERSION_NAME}"
+            textSize=11f;letterSpacing=.04f;setTextColor(getColor(R.color.argus_muted))
+        },margins(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,bottom=dp(22)))
+        fun action(icon: String,title: String,subtitle: String,onTap:()->Unit): TextView {
+            val row=LinearLayout(this).apply {
+                orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL
+                setPadding(dp(12),dp(14),dp(12),dp(14))
+                background=rounded(getColor(R.color.argus_background),dp(18).toFloat())
+                isClickable=true;isFocusable=true;setOnClickListener { onTap() }
+                contentDescription=title
+            }
+            row.addView(UtilityActionView(this,icon).apply { text=title;isClickable=false;isFocusable=false },LinearLayout.LayoutParams(dp(42),dp(42)))
+            val copy=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(dp(12),0,0,0)}
+            copy.addView(TextView(this).apply {text=title;textSize=16f;typeface=Typeface.DEFAULT_BOLD;setTextColor(getColor(R.color.argus_text))})
+            val sub=TextView(this).apply {text=subtitle;textSize=12f;setTextColor(getColor(R.color.argus_muted));setPadding(0,dp(5),0,0)}
+            copy.addView(sub);row.addView(copy,LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+            panel.addView(row,margins(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,bottom=dp(12)))
+            return sub
+        }
+        settingsUpdateStatus=action("update","Check for updates",lastUpdateMessage) { updates.onTap() }
+        action("report","Share diagnostics","Connection history and recent errors. Choose an app to send the report.") { shareDiagnosticReport() }
+        panel.addView(TextView(this).apply {
+            text="Reports stay on this device until you choose to share them. No messages, call audio or credentials are included."
+            textSize=11f;setTextColor(getColor(R.color.argus_muted));setPadding(dp(2),dp(8),dp(2),0)
+        })
+        dialog.setContentView(android.widget.ScrollView(this).apply {
+            isFillViewport = true
+            background = rounded(getColor(R.color.argus_surface),dp(26).toFloat())
+            addView(panel)
+        })
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+        dialog.setOnDismissListener { settingsUpdateStatus=null }
+        dialog.show()
+        dialog.window?.setLayout(minOf(dp(440),resources.displayMetrics.widthPixels-dp(32)),ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
     private fun shareDiagnosticReport() {
         runCatching {
             val file = DiagnosticReport.create(this, light.current(), bridge.current())
@@ -715,17 +772,17 @@ class MainActivity : Activity() {
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_SUBJECT, "Argus Connect diagnostic ${BuildConfig.VERSION_NAME}")
-                putExtra(Intent.EXTRA_TEXT, "Технический отчёт Argus без содержимого сообщений и персональных адресов.")
+                putExtra(Intent.EXTRA_TEXT, "Argus connection diagnostics. No messages, call audio, account identifiers or credentials.")
                 putExtra(Intent.EXTRA_STREAM, uri)
                 clipData = ClipData.newRawUri("Argus diagnostic", uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            startActivity(Intent.createChooser(send, "Куда отправить отчёт"))
+            startActivity(Intent.createChooser(send, "Share diagnostics"))
         }.onFailure { failure ->
             AlertDialog.Builder(this)
-                .setTitle("Не удалось создать отчёт")
+                .setTitle("Could not prepare diagnostics")
                 .setMessage(failure.message ?: failure.javaClass.simpleName)
-                .setPositiveButton("Понятно", null)
+                .setPositiveButton("OK", null)
                 .show()
         }
     }

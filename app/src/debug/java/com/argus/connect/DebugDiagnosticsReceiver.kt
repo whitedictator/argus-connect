@@ -36,6 +36,7 @@ class DebugDiagnosticsReceiver : BroadcastReceiver() {
                     "stop-light" -> app.light.stop("Остановлено пользователем")
                 }
                 val report = DiagnosticReport.create(context, app.light.current(), app.bridge.current())
+                context.cacheDir.resolve("diagnostics").mkdirs()
                 report.copyTo(context.cacheDir.resolve("diagnostics/usb-latest.txt"), overwrite = true)
             } finally {
                 pending.finish()
