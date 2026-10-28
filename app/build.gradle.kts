@@ -39,8 +39,8 @@ android {
         applicationId = "com.argus.connect.alpha"
         minSdk = 30
         targetSdk = 36
-        versionCode = 192
-        versionName = "1.4.52-alpha.5.52"
+        versionCode = 193
+        versionName = "1.4.53-alpha.5.53"
         ndk { abiFilters += "arm64-v8a" }
     }
 

@@ -56,12 +56,23 @@ class MainActivity : Activity() {
     private lateinit var repairDeck: RepairDeckView
     private var bridgeObservation: AutoCloseable? = null
     private var lightObservation: AutoCloseable? = null
+    private enum class Section { VPN, HOTSPOT }
+    private var section = Section.VPN
+    private lateinit var vpnPage: View
+    private lateinit var hotspotPage: View
+    private lateinit var vpnTab: TextView
+    private lateinit var hotspotTab: TextView
+    private lateinit var hotspotHero: UtilityActionView
+    private lateinit var hotspotHeading: TextView
+    private lateinit var hotspotSummary: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = getColor(R.color.argus_background)
         window.navigationBarColor = getColor(R.color.argus_background)
+        section = if (savedInstanceState?.getBoolean("hotspot_tab") == true) Section.HOTSPOT else Section.VPN
         setContentView(buildScreen())
+        selectSection(section)
         updates = AppUpdates(this) { message -> lastUpdateMessage = message; settingsUpdateStatus?.text = message }
         settingsButton.setOnClickListener { showSettings() }
         updates.check()
@@ -94,6 +105,11 @@ class MainActivity : Activity() {
         handleTileIntent()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("hotspot_tab", section == Section.HOTSPOT)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroy() {
         if (::updates.isInitialized) updates.close()
         super.onDestroy()
@@ -107,8 +123,14 @@ class MainActivity : Activity() {
 
 
     private fun handleTileIntent() {
+        if (intent.action == android.service.quicksettings.TileService.ACTION_QS_TILE_PREFERENCES) {
+            intent.action = null
+            selectSection(Section.VPN)
+            return
+        }
         if (intent.action != ArgusTileService.ACTION_ENABLE_LIGHT) return
         intent.action = null
+        selectSection(Section.VPN)
         val current = light.current()
         if (!current.isRunning && !current.isBusy) toggleLight()
     }
@@ -177,7 +199,30 @@ class MainActivity : Activity() {
         }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         settingsButton = UtilityActionView(this, "settings").apply { text = "Settings" }
         header.addView(settingsButton, FrameLayout.LayoutParams(dp(44),dp(44),Gravity.END or Gravity.CENTER_VERTICAL))
-        content.addView(header,margins(ViewGroup.LayoutParams.MATCH_PARENT,dp(48),bottom=dp(10)))
+        val top = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                super.onMeasure(View.MeasureSpec.makeMeasureSpec(minOf(View.MeasureSpec.getSize(widthMeasureSpec),dp(840)),View.MeasureSpec.EXACTLY),heightMeasureSpec)
+            }
+        }.apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), dp(8))
+            addView(header, margins(ViewGroup.LayoutParams.MATCH_PARENT, dp(48), bottom = dp(10)))
+        }
+        val tabs = LinearLayout(this).apply {
+            setPadding(dp(4),dp(4),dp(4),dp(4))
+            background = rounded(getColor(R.color.argus_surface),dp(20).toFloat())
+        }
+        fun tab(label: String, target: Section) = TextView(this).apply {
+            text = label; textSize = 15f; typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER; isClickable = true; isFocusable = true
+            contentDescription = "$label tab"
+            setOnClickListener { selectSection(target) }
+        }
+        vpnTab = tab("VPN", Section.VPN)
+        hotspotTab = tab("Hotspot", Section.HOTSPOT)
+        tabs.addView(vpnTab,LinearLayout.LayoutParams(0,dp(44),1f))
+        tabs.addView(hotspotTab,LinearLayout.LayoutParams(0,dp(44),1f))
+        top.addView(tabs)
 
 
         hero = ArgusHeroView(this)
@@ -209,21 +254,6 @@ class MainActivity : Activity() {
             setLineSpacing(0f, 1.12f)
         }
         content.addView(detail, margins(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, bottom = dp(24)))
-
-        hotspotStatus = TextView(this).apply {
-            textSize = 13f
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = rounded(getColor(R.color.argus_surface), dp(18).toFloat())
-            setLineSpacing(0f, 1.12f)
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-            setOnClickListener {
-                val current = bridge.current()
-                AlertDialog.Builder(this@MainActivity).setTitle(current.title)
-                    .setMessage(current.detail)
-                    .setPositiveButton("Понятно", null).show()
-            }
-        }
-        content.addView(hotspotStatus, margins(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, bottom = dp(18)))
 
         // Existing detailed reports remain available on each graphical card.
         telegramRow = checkRow()
@@ -281,15 +311,87 @@ class MainActivity : Activity() {
                 addView(it, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginStart = dp(4); marginEnd = dp(4) })
             }
         }
-        return FrameLayout(this).apply {
+        vpnPage = scroll
+        val hotspotContent = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                super.onMeasure(View.MeasureSpec.makeMeasureSpec(minOf(View.MeasureSpec.getSize(widthMeasureSpec),dp(840)),View.MeasureSpec.EXACTLY),heightMeasureSpec)
+            }
+        }.apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(22),dp(28),dp(22),dp(28))
+        }
+        hotspotHero = UtilityActionView(this,"hotspot").apply {
+            text = "Start protected hotspot"
+            setOnClickListener { hotspotButton.performClick() }
+        }
+        hotspotContent.addView(hotspotHero,margins(dp(96),dp(96),bottom=dp(22)))
+        hotspotHeading = TextView(this).apply {
+            textSize=26f;typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER
+            setTextColor(getColor(R.color.argus_text))
+        }
+        hotspotContent.addView(hotspotHeading,margins(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,bottom=dp(12)))
+        hotspotSummary = TextView(this).apply {
+            textSize=14f;gravity=Gravity.CENTER;setLineSpacing(0f,1.15f)
+            setTextColor(getColor(R.color.argus_muted))
+        }
+        hotspotContent.addView(hotspotSummary,margins(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,bottom=dp(24)))
+        hotspotStatus = TextView(this).apply {
+            textSize = 13f
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = rounded(getColor(R.color.argus_surface), dp(18).toFloat())
+            setLineSpacing(0f, 1.12f)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            setOnClickListener {
+                val current = bridge.current()
+                AlertDialog.Builder(this@MainActivity).setTitle(current.title)
+                    .setMessage(current.detail)
+                    .setPositiveButton("Понятно", null).show()
+            }
+        }
+        hotspotContent.addView(hotspotStatus, margins(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, bottom = dp(18)))
+
+        hotspotContent.addView(TextView(this).apply {
+            text="Share the phone’s active VPN over Wi-Fi. You can use Argus or another VPN app.\n\nEnable a VPN on the phone, then tap the hotspot icon. Switching tabs does not start or stop either connection."
+            textSize=14f;setLineSpacing(0f,1.2f);setTextColor(getColor(R.color.argus_muted))
+            setPadding(dp(16),dp(16),dp(16),dp(16))
+            background=rounded(getColor(R.color.argus_surface),dp(18).toFloat())
+        },margins(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT))
+        hotspotPage = ScrollView(this).apply {
+            isFillViewport=true
+            addView(FrameLayout(this@MainActivity).apply {
+                addView(hotspotContent,FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+            })
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL
             setBackgroundColor(getColor(R.color.argus_background))
-            addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply { bottomMargin = dp(92) })
-            addView(dock, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(12); leftMargin=dp(16); rightMargin=dp(16) })
+            addView(top,LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(FrameLayout(this@MainActivity).apply {
+                addView(vpnPage,FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT))
+                addView(hotspotPage,FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT))
+            },LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1f))
+            addView(dock,LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin=dp(12);leftMargin=dp(16);rightMargin=dp(16) })
             setOnApplyWindowInsetsListener { view, insets ->
                 val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
                 view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
                 insets
             }
+        }
+    }
+
+    /** Navigation only: preserve the VPN and bridge sessions while changing pages. */
+    private fun selectSection(target: Section) {
+        section = target
+        val vpn = target == Section.VPN
+        vpnPage.visibility = if (vpn) View.VISIBLE else View.GONE
+        hotspotPage.visibility = if (vpn) View.GONE else View.VISIBLE
+        lightButton.visibility = if (vpn) View.VISIBLE else View.GONE
+        proxyButton.visibility = if (vpn) View.VISIBLE else View.GONE
+        hotspotButton.visibility = if (vpn) View.GONE else View.VISIBLE
+        listOf(vpnTab to vpn, hotspotTab to !vpn).forEach { (tab, selected) ->
+            tab.isSelected = selected
+            tab.setTextColor(getColor(if (selected) R.color.argus_green else R.color.argus_muted))
+            tab.background = if (selected) rounded(getColor(R.color.argus_background),dp(16).toFloat()) else null
         }
     }
 
@@ -377,6 +479,23 @@ class MainActivity : Activity() {
             else -> R.color.argus_text
         }))
         hotspotButton.active = bridgeState.isActive
+        hotspotHero.active = bridgeState.isActive
+        hotspotHero.isEnabled = !bridgeState.isBusy
+        hotspotHero.alpha = if (bridgeState.isBusy) .55f else 1f
+        hotspotHero.text = if (bridgeState.isActive) "Stop protected hotspot" else "Start protected hotspot"
+        hotspotHeading.text = when (bridgeState.phase) {
+            BridgePhase.ACTIVE -> "Hotspot is active"
+            BridgePhase.STARTING -> "Starting hotspot…"
+            BridgePhase.STOPPING -> "Stopping hotspot…"
+            BridgePhase.ERROR -> "Hotspot needs attention"
+            BridgePhase.SETUP_REQUIRED -> "Set up protected hotspot"
+            else -> "Protected hotspot"
+        }
+        hotspotSummary.text = when {
+            bridgeState.isActive -> "Sharing the active VPN. Status is monitored while sharing."
+            bridgeState.isBusy -> "Waiting for the system bridge."
+            else -> "Share your active VPN, independently of the VPN tab."
+        }
         proxyButton.active = light.proxyCount() > 0 || light.publicMTProxyDiscovery()
 
         hotspotButton.text = when (bridgeState.phase) {
