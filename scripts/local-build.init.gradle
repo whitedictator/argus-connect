@@ -1,0 +1,8 @@
+// Optional local output root for checkouts synced by cloud file providers.
+// CI uses Gradle's ordinary build directory on its clean runner.
+def argusBuildRoot = System.getenv("ARGUS_BUILD_ROOT")
+if (argusBuildRoot) {
+    gradle.beforeProject { project ->
+        project.layout.buildDirectory.set(new File(argusBuildRoot, project.name))
+    }
+}

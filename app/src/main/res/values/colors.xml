@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="argus_background">#07110F</color>
+    <color name="argus_green">#7CF2B1</color>
+    <color name="argus_text">#F1F7F4</color>
+    <color name="argus_muted">#91A69D</color>
+    <color name="argus_surface">#12231E</color>
+    <color name="argus_error">#FF8A8A</color>
+</resources>
