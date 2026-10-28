@@ -7,7 +7,10 @@ test -f "$apk"
 aapt_bin="${ANDROID_HOME:?ANDROID_HOME required}/build-tools/36.0.0/aapt"
 badging="$($aapt_bin dump badging "$apk")"
 
-grep -Fq "package: name='com.argus.connect.alpha.debug' versionCode='192' versionName='1.4.52-alpha.5.52-debug'" <<<"$badging"
+version_code="$(sed -n 's/^[[:space:]]*versionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts)"
+version_name="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)"
+test -n "$version_code" && test -n "$version_name"
+grep -Fq "package: name='com.argus.connect.alpha.debug' versionCode='$version_code' versionName='$version_name-debug'" <<<"$badging"
 grep -Fq "application-label:'Argus Connect α'" <<<"$badging"
 grep -Fq "native-code: 'arm64-v8a'" <<<"$badging"
 
@@ -46,7 +49,7 @@ grep -Rqs --exclude='*_test.go' "ARGUS_SELF_TEST_OK" app/src/main/java/com/argus
 grep -Rqs --exclude='*_test.go' "AdbShellPacket.Exit" app/src/main/java/com/argus/connect
 grep -Rqs --exclude='*_test.go' "export CLASSPATH=" app/src/main/java/com/argus/connect
 grep -Rqs --exclude='*_test.go' "openShell(command)" app/src/main/java/com/argus/connect
-! grep -Rqs --exclude='*_test.go' "setsid" app/src/main/java/com/argus/connect
+grep -Rqs --exclude='*_test.go' "setsid" app/src/main/java/com/argus/connect
 grep -Rqs --exclude='*_test.go' "NewProtocolCUBIC" datapath
 grep -Rqs --exclude='*_test.go' "alternateAddress" datapath
 grep -Rqs --exclude='*_test.go' "result.Fallback" datapath/policy.go
@@ -55,6 +58,7 @@ grep -Rqs --exclude='*_test.go' "onUpstreamChanged" app/src/main/java/com/argus/
 
 xmltree="$($aapt_bin dump xmltree "$apk" AndroidManifest.xml)"
 grep -Fq "android.net.VpnService" <<<"$xmltree"
+grep -Fq "android.service.quicksettings.action.QS_TILE_PREFERENCES" <<<"$xmltree"
 grep -Fq "android.permission.BIND_VPN_SERVICE" <<<"$xmltree"
 
 verify_dir="$(mktemp -d)"
@@ -124,7 +128,7 @@ grep -Rqs --exclude='*_test.go' "_adb-tls-pairing._tcp" app/src/main/java/com/ar
 grep -Fq "androidx.core.content.FileProvider" <<<"$xmltree"
 
 cat > BUILD-PROOF.txt <<EOF
-Argus Connect 1.4.52-alpha.5.52
+Argus Connect $version_name
 scope=artifact-identity-and-code-presence-only; not proof of carrier bypass or leak-free hotspot
 package=com.argus.connect.alpha.debug
 minSdk=30
