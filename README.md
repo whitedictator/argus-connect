@@ -1,16 +1,20 @@
-# Argus Connect — Android alpha
+# Argus Connect
 
-Local Android network recovery (LIGHT) and a separate VPN-protected hotspot.
-**Experimental alpha; connectivity depends on the carrier, endpoints and OS.**
+A connection assistant for Android. Argus helps check popular messaging apps and online services, diagnose connectivity issues, and try suitable fixes.
 
-- LIGHT uses Android VpnService and a userspace TCP/UDP stack. It does not require root.
-- Hotspot can forward through the VPN currently active on the phone, including an external VPN with LIGHT disabled. A privileged, user-authorized Android bridge is required. Mobile-only helper lifetime and fail-closed tethering remain under investigation; do not assume they work after Wi-Fi disconnect or reboot.
-- Service checks distinguish a reachable route from confirmed messages, media and calls. A TLS handshake does not prove video playback.
-- In-app updates check public GitHub Releases daily when Argus opens, with a manual check in the app. Downloads require user approval. SHA-256, package, version and the installed signing certificate are checked before Android's installation confirmation.
+- Service-by-service connection checks and clear status information.
+- Adaptive network recovery with priority for previously successful settings.
+- Protected internet sharing through an active VPN, with LIGHT switched off if preferred.
+- In-app update checks and verified APK downloads from GitHub Releases.
 
-## Compatibility
+**Experimental alpha · Android 11+ · ARM64.** Available features depend on the Android version, firmware and permissions. Some features require initial setup. A successful endpoint check does not confirm that messaging, media or calls all work.
 
-ARM64 Android 11/API 30 and later. LIGHT and hotspot have separate capability requirements. Samsung, Xiaomi, Honor and other brands are not whitelisted; hidden tethering APIs, debugging permissions, firmware and battery management can still prevent protected hotspot. Android 11/12 compatibility is a build/lint target pending hardware testing, not a promise of protected tethering.
+## Install and update
+
+Download the APK from [Releases](https://github.com/whitedictator/argus-connect/releases).
+Argus checks for updates when opened, at most once a day. Tap the version row for a manual check. Downloads require user approval; the app checks SHA-256, package, version and signing certificate before Android asks to confirm installation.
+
+For protected sharing through another VPN, the Argus bridge service stays in the background while LIGHT is off. Losing the selected VPN stops protected sharing. Restarting the phone or force-stopping Argus may require bridge recovery.
 
 ## Build
 
@@ -24,16 +28,8 @@ gomobile init
 bash scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk
 ```
 
-CI builds are verification artifacts, not upgrades for an installed alpha: GitHub's ephemeral debug key differs from the distribution key. Published alpha APKs are signed locally with the existing alpha certificate so existing installations can update. Private signing keys and device diagnostics never belong in this repository. Keep the distribution keystore backed up privately; replacing it prevents upgrades.
+CI artifacts verify the source build. Published APK upgrades are signed locally with the existing alpha certificate; private signing keys are not stored in this repository. `scripts/prepare-release.py` creates the update metadata and checksum.
 
-## YouTube adaptation
+## License
 
-See [the porting notes](docs/youtube-adaptation.md). Strategies learned for a router are not copied blindly to Android. Existing RVX client patches are separate from this project; no patched YouTube APK is distributed here.
-
-## Updates and publication
-
-Release assets: `Argus-Connect-alpha.apk`, `update.json`, `SHA256.txt`. Use `scripts/prepare-release.py` to generate metadata from a locally signed build. The updater consumes `releases/latest`; each alpha release intended for this channel is published as the latest non-draft release, with alpha clearly stated in its title. Signed updates are interactive, never silently installed.
-
-Network recovery does not hide traffic metadata from the carrier or optional proxy operators. Optional service proxy endpoints are opt-in. Argus does not collect message contents or call audio.
-
-Apache-2.0; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Apache-2.0. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
